@@ -17,6 +17,14 @@ func main() {
 	go updateMetrics(statsUpdateTicker)
 
 	http.Handle("/metrics", promhttp.Handler())
-	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	err := make(chan error)
+	go func() {
+		err <- http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	}()
+
+	log.Println(fmt.Sprintf("Listening on port %d.", port))
+	log.Println("Metrics are exposed at /metrics endpoint.")
+
+	<-err
 	log.Println(err)
 }
