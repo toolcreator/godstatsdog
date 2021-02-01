@@ -4,7 +4,7 @@ A rewrite and enhancement of [dstatsd](https://github.com/toolcreator/dstatsd) i
 
 godstatsdog collects the metrics also provided by the
 [`docker stats`](https://docs.docker.com/engine/reference/commandline/stats/) command (see below) from your running
-containers and and exposes them via HTTP in a format scrapable by
+containers and exposes them via HTTP in a format scrapable by
 [Prometheus](https://github.com/prometheus/prometheus).
 A multiarch (amd64, arm, arm64) docker image is available at
 [dockerhub](https://hub.docker.com/r/toolcreator/godstatsdog).
