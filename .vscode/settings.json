@@ -1,0 +1,6 @@
+{
+  "terminal.integrated.env.linux": {
+    "DOCKERHUB_USER": "",
+    "DOCKERHUB_PASSWORD": ""
+  }
+}
