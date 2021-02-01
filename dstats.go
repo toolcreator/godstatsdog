@@ -18,7 +18,7 @@ type dStats struct {
 	memPercent float32
 	netInp     uint64
 	netOut     uint64
-	blockIn    uint64
+	blockInp   uint64
 	blockOut   uint64
 	pids       uint64
 }
@@ -54,12 +54,12 @@ func parseContainerStats(statsResp types.ContainerStats) (dStats, error) {
 			ret.netOut += netifStats.TxBytes
 		}
 
-		ret.blockIn = 0
+		ret.blockInp = 0
 		ret.blockOut = 0
 		for _, blkioStats := range stats.BlkioStats.IoServiceBytesRecursive {
 			switch blkioStats.Op {
 			case "Read":
-				ret.blockIn += blkioStats.Value
+				ret.blockInp += blkioStats.Value
 			case "Write":
 				ret.blockOut += blkioStats.Value
 			}
