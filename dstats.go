@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
 	"log"
 
 	"github.com/docker/docker/api/types"
@@ -23,51 +24,59 @@ type dStats struct {
 	pids       uint64
 }
 
-func parseContainerStats(statsResp types.ContainerStats) (dStats, error) {
-	var ret dStats
+func parseContainerStats(statsResp types.ContainerStats) (types.StatsJSON, error) {
+	var ret types.StatsJSON
 	var err error
 
-	var stats types.StatsJSON
-	decoder := json.NewDecoder(statsResp.Body)
-	err = decoder.Decode(&stats)
+	statsRespBody, err := ioutil.ReadAll(statsResp.Body)
+	err = statsResp.Body.Close()
 	if err == nil {
-		// https://docs.docker.com/engine/api/v1.41/#operation/ContainerStats
-
-		if stats.Name[0] == '/' {
-			stats.Name = stats.Name[1:]
-		}
-		ret.name = stats.Name
-		ret.id = stats.ID
-
-		cpuDelta := float64(stats.CPUStats.CPUUsage.TotalUsage - stats.PreCPUStats.CPUUsage.TotalUsage)
-		sysCPUDelta := float64(stats.CPUStats.SystemUsage - stats.PreCPUStats.SystemUsage)
-		ret.cpuPercent = float32((cpuDelta / sysCPUDelta) * float64(len(stats.CPUStats.CPUUsage.PercpuUsage)) * 100)
-
-		ret.memUsage = stats.MemoryStats.Usage - stats.MemoryStats.Stats["cache"]
-		ret.memLimit = stats.MemoryStats.Limit
-		ret.memPercent = float32((float64(ret.memUsage) / float64(ret.memLimit)) * 100)
-
-		ret.netInp = 0
-		ret.netOut = 0
-		for _, netifStats := range stats.Networks {
-			ret.netInp += netifStats.RxBytes
-			ret.netOut += netifStats.TxBytes
-		}
-
-		ret.blockInp = 0
-		ret.blockOut = 0
-		for _, blkioStats := range stats.BlkioStats.IoServiceBytesRecursive {
-			switch blkioStats.Op {
-			case "Read":
-				ret.blockInp += blkioStats.Value
-			case "Write":
-				ret.blockOut += blkioStats.Value
-			}
-		}
-
-		ret.pids = stats.PidsStats.Current
+		err = json.Unmarshal(statsRespBody, &ret)
 	}
+
 	return ret, err
+}
+
+func calcContainerStats(statsJSON types.StatsJSON) dStats {
+	// https://docs.docker.com/engine/api/v1.41/#operation/ContainerStats
+
+	var ret dStats
+
+	if statsJSON.Name[0] == '/' {
+		statsJSON.Name = statsJSON.Name[1:]
+	}
+	ret.name = statsJSON.Name
+	ret.id = statsJSON.ID
+
+	cpuDelta := float64(statsJSON.CPUStats.CPUUsage.TotalUsage - statsJSON.PreCPUStats.CPUUsage.TotalUsage)
+	sysCPUDelta := float64(statsJSON.CPUStats.SystemUsage - statsJSON.PreCPUStats.SystemUsage)
+	ret.cpuPercent = float32((cpuDelta / sysCPUDelta) * float64(len(statsJSON.CPUStats.CPUUsage.PercpuUsage)) * 100)
+
+	ret.memUsage = statsJSON.MemoryStats.Usage - statsJSON.MemoryStats.Stats["cache"]
+	ret.memLimit = statsJSON.MemoryStats.Limit
+	ret.memPercent = float32((float64(ret.memUsage) / float64(ret.memLimit)) * 100)
+
+	ret.netInp = 0
+	ret.netOut = 0
+	for _, netifStats := range statsJSON.Networks {
+		ret.netInp += netifStats.RxBytes
+		ret.netOut += netifStats.TxBytes
+	}
+
+	ret.blockInp = 0
+	ret.blockOut = 0
+	for _, blkioStats := range statsJSON.BlkioStats.IoServiceBytesRecursive {
+		switch blkioStats.Op {
+		case "Read":
+			ret.blockInp += blkioStats.Value
+		case "Write":
+			ret.blockOut += blkioStats.Value
+		}
+	}
+
+	ret.pids = statsJSON.PidsStats.Current
+
+	return ret
 }
 
 func getDStats() ([]dStats, error) {
@@ -90,12 +99,11 @@ func getDStats() ([]dStats, error) {
 		if err != nil {
 			log.Println(err)
 		} else {
-			var stats dStats
-			stats, err = parseContainerStats(statsResp)
+			statsJSON, err := parseContainerStats(statsResp)
 			if err != nil {
 				log.Println(err)
 			} else {
-				ret = append(ret, stats)
+				ret = append(ret, calcContainerStats(statsJSON))
 			}
 		}
 	}
