@@ -108,5 +108,7 @@ func getDStats() ([]dStats, error) {
 		}
 	}
 
+	err = dockerCli.Close()
+
 	return ret, nil
 }
