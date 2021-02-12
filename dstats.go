@@ -24,8 +24,8 @@ type dStats struct {
 	pids       uint64
 }
 
-func parseContainerStats(statsResp types.ContainerStats) (types.StatsJSON, error) {
-	var ret types.StatsJSON
+func parseContainerStats(statsResp *types.ContainerStats) (*types.StatsJSON, error) {
+	var ret *types.StatsJSON
 	var err error
 
 	statsRespBody, err := ioutil.ReadAll(statsResp.Body)
@@ -37,7 +37,7 @@ func parseContainerStats(statsResp types.ContainerStats) (types.StatsJSON, error
 	return ret, err
 }
 
-func calcContainerStats(statsJSON types.StatsJSON) dStats {
+func calcContainerStats(statsJSON *types.StatsJSON, preTotalCPU, preSystemCPU uint64) dStats {
 	// https://docs.docker.com/engine/api/v1.41/#operation/ContainerStats
 
 	var ret dStats
@@ -48,8 +48,8 @@ func calcContainerStats(statsJSON types.StatsJSON) dStats {
 	ret.name = statsJSON.Name
 	ret.id = statsJSON.ID
 
-	cpuDelta := float64(statsJSON.CPUStats.CPUUsage.TotalUsage - statsJSON.PreCPUStats.CPUUsage.TotalUsage)
-	sysCPUDelta := float64(statsJSON.CPUStats.SystemUsage - statsJSON.PreCPUStats.SystemUsage)
+	cpuDelta := float64(statsJSON.CPUStats.CPUUsage.TotalUsage - preTotalCPU)
+	sysCPUDelta := float64(statsJSON.CPUStats.SystemUsage - preSystemCPU)
 	ret.cpuPercent = float32((cpuDelta / sysCPUDelta) * float64(len(statsJSON.CPUStats.CPUUsage.PercpuUsage)) * 100)
 
 	ret.memUsage = statsJSON.MemoryStats.Usage - statsJSON.MemoryStats.Stats["cache"]
@@ -79,6 +79,8 @@ func calcContainerStats(statsJSON types.StatsJSON) dStats {
 	return ret
 }
 
+var oldStatsJSONs = make(map[string]*types.StatsJSON)
+
 func getDStats() ([]dStats, error) {
 	var ret []dStats
 
@@ -99,13 +101,39 @@ func getDStats() ([]dStats, error) {
 		if err != nil {
 			log.Println(err)
 		} else {
-			statsJSON, err := parseContainerStats(statsResp)
+			statsJSON, err := parseContainerStats(&statsResp)
 			if err != nil {
 				log.Println(err)
 			} else {
-				ret = append(ret, calcContainerStats(statsJSON))
+				preTotalCPU := uint64(0)
+				preSysCPU := uint64(0)
+				oldStats := oldStatsJSONs[container.ID]
+				if oldStats != nil {
+					preTotalCPU = oldStats.CPUStats.CPUUsage.TotalUsage
+					preSysCPU = oldStats.CPUStats.SystemUsage
+				}
+				ret = append(ret, calcContainerStats(statsJSON, preTotalCPU, preSysCPU))
+				oldStatsJSONs[container.ID] = statsJSON
 			}
 		}
+	}
+
+	// cleanup old stats
+	var obsoleteIds []string
+	for containerID := range oldStatsJSONs {
+		found := false
+		for _, container := range containers {
+			found = container.ID == containerID
+			if found {
+				break
+			}
+		}
+		if !found {
+			obsoleteIds = append(obsoleteIds, containerID)
+		}
+	}
+	for _, containerID := range obsoleteIds {
+		delete(oldStatsJSONs, containerID)
 	}
 
 	err = dockerCli.Close()
