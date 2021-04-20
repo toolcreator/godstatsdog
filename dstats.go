@@ -28,7 +28,7 @@ func parseContainerStats(statsResp *types.ContainerStats) (*types.StatsJSON, err
 	var ret *types.StatsJSON
 	var err error
 
-	statsRespBody, err := ioutil.ReadAll(statsResp.Body)
+	statsRespBody, _ := ioutil.ReadAll(statsResp.Body)
 	err = statsResp.Body.Close()
 	if err == nil {
 		err = json.Unmarshal(statsRespBody, &ret)
@@ -136,7 +136,7 @@ func getDStats() ([]dStats, error) {
 		delete(oldStatsJSONs, containerID)
 	}
 
-	err = dockerCli.Close()
+	dockerCli.Close()
 
 	return ret, nil
 }
