@@ -82,12 +82,11 @@ godstatsdog:
 
 1. Download the source code: `git clone https://github.com/toolcreator/godstatsdog.git`
 2. Enter the root directory: `cd godstatsdog`
-3. Install dependencies: `go get ./...`
-4. Compile: `go build`
-5. Install: `go install`
-6. Run: `godstatsdog`
+3. Compile: `go build`
+4. Install: `go install`
+5. Run: `godstatsdog`
 
-You may also skip step 5 and use `./godstatsdog` to run the program instead.
+You may also skip step 4 and use `./godstatsdog` to run the program instead.
 
 ## Metrics
 
